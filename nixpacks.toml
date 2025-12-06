@@ -1,0 +1,17 @@
+# nixpacks.toml
+
+[build]
+nixpacksVersion = 1
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs", "coreutils"]
+
+[phases.build]
+cmds = [
+  "cd frontend && npm install && npm run build",
+  "cd backend && npm install"
+]
+
+[start]
+cmd = "cd backend && node app.js"
