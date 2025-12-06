@@ -4,7 +4,7 @@ import ImportadorExcel from './ImportadorExcel';
 import { useSession } from '../context/SessionContext';
 import socket from '../socket/socket';
 import ModalOrdenCompra from './ModalOrdenCompra';
-import { Button } from '@mui/material';
+import { Button, TextField } from '@mui/material';
 import { DataGridPremium } from '@mui/x-data-grid-premium';
 import { esES } from '@mui/x-data-grid/locales';
 
@@ -413,9 +413,28 @@ function FacturaForm() {
               ))}
           </select>
 
-          <input type="date" name="fecha" value={form.fecha} onChange={handleChange} required />
+          <TextField
+            label="Fecha"
+            type="date"
+            name="fecha"
+            value={form.fecha || ''}
+            onChange={handleChange}
+            required
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
 
-          <input type="hidden" name="fecha_vuelo" value={form.fecha || ''} readOnly />
+          <TextField
+            label="Fecha vuelo"
+            type="date"
+            name="fecha_vuelo"
+            value={form.fecha_vuelo || ''} // 👈 mejor que form.fecha
+            onChange={handleChange}
+            required
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+
           <input type="hidden" name="fecha_entrega" value={form.fecha || ''} readOnly />
           <input
             type="text"

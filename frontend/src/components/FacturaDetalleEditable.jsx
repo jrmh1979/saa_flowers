@@ -987,20 +987,19 @@ function FacturaDetalleEditable() {
         </button>
       )
     },
-
     {
-      field: 'codigo',
-      headerName: 'Mark',
+      field: 'documento_proveedor',
+      headerName: 'Doc. Prov.',
       width: 80,
       editable: true,
+      tabbable: false,
       sortable: false,
       filterable: true
     },
-
     {
       field: 'idproveedor',
       headerName: 'Proveedor',
-      width: 130,
+      width: 140,
       type: 'singleSelect',
       valueOptions: proveedores.map((p) => ({ value: p.idtercero, label: p.nombre })),
       editable: true,
@@ -1276,16 +1275,15 @@ function FacturaDetalleEditable() {
         return !isNaN(value) ? value.toFixed(2) : '';
       }
     },
-
     {
-      field: 'documento_proveedor',
-      headerName: 'Doc. Prov.',
-      width: 80,
+      field: 'codigo',
+      headerName: 'Mark',
+      width: 120,
       editable: true,
-      tabbable: false,
       sortable: false,
       filterable: true
     },
+
     {
       field: 'guia_master',
       headerName: 'Awbh',
@@ -1944,17 +1942,24 @@ function FacturaDetalleEditable() {
                   readOnly
                   style={{ display: 'none' }}
                 />
-                <input
+                <TextField
+                  label="Fecha"
                   type="date"
                   value={form.fecha || ''}
                   onChange={(e) => handleActualizarCampoEncabezado('fecha', e.target.value)}
-                  style={{ display: 'none' }}
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
                 />
-                <input
+
+                <TextField
+                  label="Fecha vuelo"
                   type="date"
                   value={form.fecha_vuelo || ''}
                   onChange={(e) => handleActualizarCampoEncabezado('fecha_vuelo', e.target.value)}
+                  size="small"
+                  InputLabelProps={{ shrink: true }}
                 />
+
                 <input
                   placeholder="000-0000-0000"
                   inputMode="numeric"
