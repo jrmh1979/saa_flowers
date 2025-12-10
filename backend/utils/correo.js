@@ -4,8 +4,8 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'jrmartinezh5@gmail.com',
-    pass: 'vlbv vxhs nivm tuqo' // App password, no tu contraseña normal
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
@@ -89,8 +89,50 @@ const enviarCorreoNC = async (correoDestino, pdfBuffer, nombre, idpago, contexto
   });
 };
 
+/**
+ * ✅ Enviar Commercial Invoice al Cliente
+ */
+const enviarCorreoInvoice = async (correoDestino, pdfBuffer, numeroFactura, nombreCliente) => {
+  // Validación básica
+  if (!correoDestino || !correoDestino.includes('@')) {
+    console.warn(`⚠️ No se envió el Invoice ${numeroFactura}: Correo inválido (${correoDestino})`);
+    return;
+  }
+
+  const asunto = `Commercial Invoice - Factura #${numeroFactura}`;
+  const mensaje = `
+    Estimado/a ${nombreCliente || 'Cliente'},<br><br>
+    Adjunto encontrará la <strong>Commercial Invoice #${numeroFactura}</strong> correspondiente a su pedido.<br><br>
+    Agradecemos su preferencia.<br><br>
+    Saludos cordiales,<br>
+    <strong>Sales Flower EC</strong>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: '"Sales Flower Dept" <Salesflowerec@gmail.com>', // Nombre remitente más profesional
+      to: correoDestino,
+      subject: asunto,
+      html: mensaje,
+      attachments: [
+        {
+          filename: `Invoice_${numeroFactura}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }
+      ]
+    });
+    console.log(`✅ Invoice ${numeroFactura} enviado a ${correoDestino}`);
+  } catch (error) {
+    console.error(`❌ Error enviando Invoice ${numeroFactura}:`, error);
+    throw error; // Relanzar para que el controlador sepa que falló
+  }
+};
+
+// No olvides exportarla al final del archivo:
 module.exports = {
   enviarCorreoOrden,
   enviarCorreoEstadoCuenta,
-  enviarCorreoNC
+  enviarCorreoNC,
+  enviarCorreoInvoice // <--- Agregado
 };

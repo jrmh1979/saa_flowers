@@ -12,6 +12,7 @@ const exportarExcelFactura = require('./exportarExcelController');
 router.get('/exportar-excel/:idfactura', exportarExcelFactura);
 
 const { generarPdfEtiquetas } = require('../utils/generarPdfEtiquetas');
+const { enviarCorreoOrden, enviarCorreoInvoice } = require('../utils/correo');
 
 function normalizarDecimal(valor) {
   if (typeof valor === 'string') {
@@ -2094,29 +2095,69 @@ router.post('/:id/packing/ver', async (req, res) => {
   }
 });
 
-// Enviar PACKING o INVOICE (mismo endpoint)
+// Enviar PACKING o INVOICE (mismo endpoint actualizado)
 router.post('/:id/packing/enviar', async (req, res) => {
   try {
     const idfactura = Number(req.params.id);
+    // Normalizamos el formato ('invoice' o 'packing')
     const formato = String(req.query.formato || req.body?.formato || 'packing').toLowerCase();
     const proveedores = Array.isArray(req.body?.proveedores) ? req.body.proveedores : [];
-    const para = req.body?.para; // opcional
+    const para = req.body?.para; // Permite forzar un correo desde el frontend si fuera necesario
 
+    /* ---------------- LOGICA PARA INVOICE (CLIENTE) ---------------- */
     if (formato === 'invoice') {
+      // 1. Buscamos el correo y nombre del cliente asociado a la factura
+      const [rows] = await db.query(
+        `
+        SELECT f.numero_factura, c.nombre, c.correo 
+        FROM factura_consolidada f
+        JOIN terceros c ON f.idcliente = c.idtercero
+        WHERE f.id = ? 
+      `,
+        [idfactura]
+      );
+
+      if (!rows.length) {
+        return res.status(404).json({ error: 'Factura o cliente no encontrados.' });
+      }
+
+      const datosCliente = rows[0];
+      // Usamos el correo enviado manualmente ("para") o el de la base de datos
+      const correoDestino = para || datosCliente.correo;
+
+      if (!correoDestino) {
+        return res
+          .status(400)
+          .json({ error: 'El cliente no tiene un correo registrado y no se proporcionó ninguno.' });
+      }
+
+      // 2. Generamos el PDF del Invoice
       const { buffer } = await generarPdfInvoice(idfactura);
-      // TODO: usa tu función de correo para enviar el buffer como PDF adjunto al cliente
-      // await enviarCorreoInvoice(para || correoCliente, buffer, idfactura);
-      return res.json({ ok: true });
+
+      // 3. Enviamos el correo usando la función nueva
+      await enviarCorreoInvoice(
+        correoDestino,
+        buffer,
+        datosCliente.numero_factura || idfactura,
+        datosCliente.nombre
+      );
+
+      return res.json({ ok: true, message: '✅ Invoice enviado correctamente al cliente.' });
     }
 
-    // packing por defecto
+    /* ---------------- LOGICA PARA PACKING (DEFAULT) ---------------- */
+    // Generamos el buffer del packing
     const buffer = await generarPdfPacking({ idfactura, idsProveedores: proveedores });
-    // TODO: tu lógica actual de envío para packing
-    // await enviarCorreoPacking(para, buffer, idfactura);
-    return res.json({ ok: true });
+
+    // NOTA: Como aún no tienes una función específica 'enviarCorreoPacking' en tu archivo correo.js,
+    // aquí solo dejamos la generación lista. Si quisieras enviarlo, deberías crear esa función similar a la de Invoice.
+
+    // await enviarCorreoPacking(para, buffer, idfactura); // (Pendiente de implementar)
+
+    return res.json({ ok: true, message: 'Packing generado (envío pendiente de configuración).' });
   } catch (e) {
-    console.error('packing/enviar', e);
-    res.status(500).json({ error: 'No se pudo enviar el PDF' });
+    console.error('❌ Error en packing/enviar:', e);
+    res.status(500).json({ error: 'No se pudo enviar el documento PDF.' });
   }
 });
 

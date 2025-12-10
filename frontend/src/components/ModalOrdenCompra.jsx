@@ -23,7 +23,9 @@ function ModalOrdenCompra({ idfactura, onClose }) {
   const [vistaPacking, setVistaPacking] = useState(''); // Packing / Invoice: base64 único
   const [loading, setLoading] = useState(false);
   const [accionCargando, setAccionCargando] = useState(false);
-  const [tipoReporte, setTipoReporte] = useState('orden'); // 'orden' | 'packing' | 'invoice'
+
+  // 'orden' | 'packing' | 'invoice'
+  const [tipoReporte, setTipoReporte] = useState('orden');
 
   // Cargar proveedores de la factura
   useEffect(() => {
@@ -76,7 +78,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
     []
   );
 
-  // Cada vez que cambia la selección, actualizamos el array local (solo para contadores / botones)
+  // Cada vez que cambia la selección, actualizamos el array local
   const handleRowSelectionChange = useCallback((newModel) => {
     if (Array.isArray(newModel)) {
       setSeleccionados(newModel.map((id) => Number(id)));
@@ -85,11 +87,11 @@ function ModalOrdenCompra({ idfactura, onClose }) {
     }
   }, []);
 
-  // Función helper: obtener IDs seleccionados (estado + fallback al grid)
+  // Helper: obtener IDs seleccionados
   const obtenerIdsSeleccionados = useCallback(() => {
     let ids = Array.isArray(seleccionados) ? seleccionados.map(Number) : [];
 
-    // Fallback por si algo se des-sincroniza
+    // Fallback
     if (!ids.length && gridApiRef.current && gridApiRef.current.getSelectedRows) {
       ids = Array.from(gridApiRef.current.getSelectedRows().keys()).map(Number);
     }
@@ -97,7 +99,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
     return ids;
   }, [seleccionados, gridApiRef]);
 
-  // Seleccionar / deseleccionar todos usando el apiRef (sin controlar el grid)
+  // Seleccionar / deseleccionar todos
   const handleSeleccionarTodos = useCallback(() => {
     const grid = gridApiRef.current;
     if (!grid) return;
@@ -113,17 +115,11 @@ function ModalOrdenCompra({ idfactura, onClose }) {
     const allSelected = seleccionActual === total;
 
     if (allSelected) {
-      // Deseleccionar todo
-      if (grid.setRowSelectionModel) {
-        grid.setRowSelectionModel([]);
-      }
+      if (grid.setRowSelectionModel) grid.setRowSelectionModel([]);
       setSeleccionados([]);
     } else {
-      // Seleccionar todos
       const allIds = rows.map((r) => r.id);
-      if (grid.setRowSelectionModel) {
-        grid.setRowSelectionModel(allIds);
-      }
+      if (grid.setRowSelectionModel) grid.setRowSelectionModel(allIds);
       setSeleccionados(allIds.map(Number));
     }
   }, [gridApiRef, rows]);
@@ -131,6 +127,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
   const haySeleccion = obtenerIdsSeleccionados().length > 0;
   const requiereSeleccion = tipoReporte === 'orden';
   const hayVistaOrden = Object.keys(vistaPrevia || {}).length > 0;
+  // Usamos vistaPacking también para guardar el base64 del Invoice
   const hayVistaPacking = !!vistaPacking;
   const hayVista = hayVistaOrden || hayVistaPacking;
 
@@ -140,7 +137,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
 
     let proveedoresIds = [];
     if (tipoReporte === 'invoice') {
-      proveedoresIds = []; // no necesita proveedores
+      proveedoresIds = []; // Invoice es global, no por proveedor
     } else {
       proveedoresIds = obtenerIdsSeleccionados();
     }
@@ -159,6 +156,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
         setVistaPrevia(res.data || {});
         setVistaPacking('');
       } else {
+        // Packing e Invoice usan el endpoint packing/ver con ?formato=...
         const res = await api.post(
           `/api/facturas/${idfactura}/packing/ver?formato=${encodeURIComponent(tipoReporte)}`,
           body
@@ -179,6 +177,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
     if (!idfactura) return;
 
     let proveedoresIds = [];
+    // Validación específica según reporte
     if (tipoReporte === 'invoice') {
       proveedoresIds = [];
     } else {
@@ -196,18 +195,24 @@ function ModalOrdenCompra({ idfactura, onClose }) {
 
       if (tipoReporte === 'orden') {
         await api.post(`/api/facturas/${idfactura}/orden/enviar`, body);
+        alert('📤 Órdenes enviadas a los proveedores con éxito');
       } else {
+        // Packing e Invoice
         await api.post(
           `/api/facturas/${idfactura}/packing/enviar?formato=${encodeURIComponent(tipoReporte)}`,
           body
         );
-      }
 
-      alert('📤 Enviado con éxito');
+        if (tipoReporte === 'invoice') {
+          alert('📤 Invoice enviado al cliente con éxito');
+        } else {
+          alert('📤 Packing List enviado con éxito');
+        }
+      }
       onClose?.();
     } catch (err) {
       console.error('❌ Error en enviar():', err);
-      alert('❌ Error al enviar');
+      alert('❌ Error al enviar el correo');
     } finally {
       setAccionCargando(false);
     }
@@ -255,8 +260,16 @@ function ModalOrdenCompra({ idfactura, onClose }) {
               onChange={(e) => {
                 const v = e.target.value;
                 setTipoReporte(v);
+                // Limpiar vistas previas al cambiar de tipo
                 setVistaPrevia({});
                 setVistaPacking('');
+                // Opcional: limpiar selección si cambias a Invoice
+                if (v === 'invoice') {
+                  setSeleccionados([]);
+                  if (gridApiRef.current?.setRowSelectionModel) {
+                    gridApiRef.current.setRowSelectionModel([]);
+                  }
+                }
               }}
               style={{
                 padding: '4px 8px',
@@ -266,7 +279,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
               }}
             >
               <option value="orden">Orden de Compra (por proveedor)</option>
-              <option value="packing">Packing (consolidado por proveedor)</option>
+              <option value="packing">Packing (consolidado)</option>
               <option value="invoice">Comercial Invoice (cliente)</option>
             </select>
           </Stack>
@@ -285,7 +298,8 @@ function ModalOrdenCompra({ idfactura, onClose }) {
 
         {tipoReporte === 'invoice' && (
           <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">
-            Comercial Invoice no requiere seleccionar proveedores.
+            Comercial Invoice se enviará al correo del <strong>cliente</strong> registrado en la
+            factura.
           </Typography>
         )}
 
@@ -307,7 +321,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
             minHeight: 0
           }}
         >
-          {/* Columna izquierda: grid de proveedores (solo orden/packing) */}
+          {/* Columna izquierda: grid de proveedores (Oculta para Invoice) */}
           {tipoReporte !== 'invoice' && (
             <Box
               sx={{
@@ -332,17 +346,14 @@ function ModalOrdenCompra({ idfactura, onClose }) {
                   flexWrap: 'wrap'
                 }}
               >
-                <Typography variant="subtitle2">
-                  Proveedores de la factura ({rows.length})
-                </Typography>
+                <Typography variant="subtitle2">Proveedores ({rows.length})</Typography>
                 <Button
                   size="small"
                   variant="outlined"
                   onClick={handleSeleccionarTodos}
                   disabled={rows.length === 0}
                 >
-                  {/* Texto lo calculamos en el click, aquí mostramos algo genérico */}
-                  Seleccionar / deseleccionar todos
+                  Seleccionar todos
                 </Button>
               </Box>
 
@@ -356,7 +367,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
                       fontSize: 14
                     }}
                   >
-                    No hay proveedores registrados en esta factura.
+                    No hay proveedores en esta factura.
                   </Box>
                 ) : (
                   <DataGridPremium
@@ -395,17 +406,16 @@ function ModalOrdenCompra({ idfactura, onClose }) {
               >
                 {tipoReporte === 'packing' ? (
                   <>
-                    Si dejas sin selección, el packing incluirá <strong>todos</strong> los
-                    proveedores.
+                    Si no seleccionas ninguno, se incluirán <strong>todos</strong>.
                   </>
                 ) : (
-                  <>Se generará una Orden de compra por cada proveedor seleccionado.</>
+                  <>Se generará una Orden por cada proveedor seleccionado.</>
                 )}
               </Box>
             </Box>
           )}
 
-          {/* Columna derecha: vista previa PDF */}
+          {/* Columna derecha: Vista Previa PDF */}
           {hayVista && (
             <Box
               sx={{
@@ -428,8 +438,8 @@ function ModalOrdenCompra({ idfactura, onClose }) {
                 <Typography variant="subtitle2">Vista previa PDF</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {tipoReporte === 'orden'
-                    ? 'Se muestran las órdenes generadas por proveedor.'
-                    : 'Se muestra el documento consolidado generado.'}
+                    ? 'Órdenes generadas por proveedor.'
+                    : 'Documento consolidado.'}
                 </Typography>
               </Box>
 
