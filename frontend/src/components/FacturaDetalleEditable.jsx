@@ -1961,13 +1961,14 @@ function FacturaDetalleEditable() {
                 />
 
                 <input
-                  placeholder="000-0000-0000"
-                  inputMode="numeric"
-                  maxLength={13} // 11 dígitos + 2 guiones
-                  value={formatAWB(form.awb)} // siempre muestra formateado
+                  placeholder="ABC-1234-5678" // Ejemplo actualizado
+                  type="text" // Asegura que sea tipo texto
+                  inputMode="text" // Permite teclado completo en móviles
+                  maxLength={13} // 11 caracteres + 2 guiones
+                  value={formatAWB(form.awb)}
                   onChange={(e) => {
+                    // La magia ocurre dentro de formatAWB
                     const next = formatAWB(e.target.value);
-                    // actualiza estado + persiste al backend con el valor formateado
                     handleActualizarCampoEncabezado('awb', next);
                   }}
                 />
