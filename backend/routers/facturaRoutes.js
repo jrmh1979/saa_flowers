@@ -1140,8 +1140,6 @@ router.post('/:idfactura/orden/ver', async (req, res) => {
   }
 });
 
-// enviar correo orden de compra proveedores
-const enviarCorreoOrden = require('../utils/correo');
 router.post('/:idfactura/orden/enviar', async (req, res) => {
   const { idfactura } = req.params;
   const { proveedores } = req.body;
