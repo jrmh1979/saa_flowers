@@ -18,7 +18,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
   const gridApiRef = useGridApiRef();
 
   const [proveedores, setProveedores] = useState([]);
-  const [seleccionados, setSeleccionados] = useState([]); // solo para UI (no controlamos el grid)
+  const [seleccionados, setSeleccionados] = useState([]); // solo para UI
   const [vistaPrevia, setVistaPrevia] = useState({}); // Orden: idproveedor -> base64
   const [vistaPacking, setVistaPacking] = useState(''); // Packing / Invoice: base64 único
   const [loading, setLoading] = useState(false);
@@ -87,20 +87,40 @@ function ModalOrdenCompra({ idfactura, onClose }) {
     }
   }, []);
 
-  // Helper: obtener IDs seleccionados
+  // ✅ CORRECCIÓN PRINCIPAL AQUÍ:
+  // Helper: obtener IDs seleccionados de forma segura
   const obtenerIdsSeleccionados = useCallback(() => {
+    // 1. Si es 'invoice', el Grid no existe en el DOM, así que retornamos vacío
+    // para evitar el error "reading 'has'" o crashes del apiRef.
+    if (tipoReporte === 'invoice') return [];
+
     let ids = Array.isArray(seleccionados) ? seleccionados.map(Number) : [];
 
-    // Fallback
-    if (!ids.length && gridApiRef.current && gridApiRef.current.getSelectedRows) {
-      ids = Array.from(gridApiRef.current.getSelectedRows().keys()).map(Number);
+    // 2. Fallback seguro: verificar apiRef, que exista el método y usar try-catch
+    if (
+      !ids.length &&
+      gridApiRef.current &&
+      typeof gridApiRef.current.getSelectedRows === 'function'
+    ) {
+      try {
+        const rowsMap = gridApiRef.current.getSelectedRows();
+        if (rowsMap && typeof rowsMap.keys === 'function') {
+          ids = Array.from(rowsMap.keys()).map(Number);
+        }
+      } catch (e) {
+        // Si el grid se está desmontando, ignoramos el error silenciosamente
+        console.warn('Grid API no disponible momentáneamente (ignorar si cambiaste de tab)');
+      }
     }
 
     return ids;
-  }, [seleccionados, gridApiRef]);
+  }, [seleccionados, gridApiRef, tipoReporte]);
 
   // Seleccionar / deseleccionar todos
   const handleSeleccionarTodos = useCallback(() => {
+    // Si estamos en invoice, no hacemos nada
+    if (tipoReporte === 'invoice') return;
+
     const grid = gridApiRef.current;
     if (!grid) return;
     const total = rows.length;
@@ -122,12 +142,11 @@ function ModalOrdenCompra({ idfactura, onClose }) {
       if (grid.setRowSelectionModel) grid.setRowSelectionModel(allIds);
       setSeleccionados(allIds.map(Number));
     }
-  }, [gridApiRef, rows]);
+  }, [gridApiRef, rows, tipoReporte]);
 
   const haySeleccion = obtenerIdsSeleccionados().length > 0;
   const requiereSeleccion = tipoReporte === 'orden';
   const hayVistaOrden = Object.keys(vistaPrevia || {}).length > 0;
-  // Usamos vistaPacking también para guardar el base64 del Invoice
   const hayVistaPacking = !!vistaPacking;
   const hayVista = hayVistaOrden || hayVistaPacking;
 
@@ -137,7 +156,7 @@ function ModalOrdenCompra({ idfactura, onClose }) {
 
     let proveedoresIds = [];
     if (tipoReporte === 'invoice') {
-      proveedoresIds = []; // Invoice es global, no por proveedor
+      proveedoresIds = [];
     } else {
       proveedoresIds = obtenerIdsSeleccionados();
     }
@@ -156,7 +175,6 @@ function ModalOrdenCompra({ idfactura, onClose }) {
         setVistaPrevia(res.data || {});
         setVistaPacking('');
       } else {
-        // Packing e Invoice usan el endpoint packing/ver con ?formato=...
         const res = await api.post(
           `/api/facturas/${idfactura}/packing/ver?formato=${encodeURIComponent(tipoReporte)}`,
           body
@@ -177,7 +195,6 @@ function ModalOrdenCompra({ idfactura, onClose }) {
     if (!idfactura) return;
 
     let proveedoresIds = [];
-    // Validación específica según reporte
     if (tipoReporte === 'invoice') {
       proveedoresIds = [];
     } else {
@@ -260,14 +277,17 @@ function ModalOrdenCompra({ idfactura, onClose }) {
               onChange={(e) => {
                 const v = e.target.value;
                 setTipoReporte(v);
-                // Limpiar vistas previas al cambiar de tipo
                 setVistaPrevia({});
                 setVistaPacking('');
-                // Opcional: limpiar selección si cambias a Invoice
+
+                // Limpiar selección y estado del grid si cambiamos a invoice
                 if (v === 'invoice') {
                   setSeleccionados([]);
-                  if (gridApiRef.current?.setRowSelectionModel) {
-                    gridApiRef.current.setRowSelectionModel([]);
+                  // Intentamos limpiar el modelo del grid SOLO si existe y está montado
+                  if (gridApiRef.current && gridApiRef.current.setRowSelectionModel) {
+                    try {
+                      gridApiRef.current.setRowSelectionModel([]);
+                    } catch (ignore) {}
                   }
                 }
               }}
