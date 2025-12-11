@@ -129,14 +129,23 @@ function FacturaDetalleEditable() {
   };
 
   // --- AWB helper ---
-  const formatAWB = (v) => {
-    const d = String(v || '')
-      .replace(/\D/g, '')
-      .slice(0, 11); // solo dígitos, máx 11
-    const p1 = d.slice(0, 3);
-    const p2 = d.slice(3, 7);
-    const p3 = d.slice(7, 11);
-    return [p1, p2, p3].filter(Boolean).join('-'); // 000-0000-0000
+  const formatAWB = (value) => {
+    if (!value) return '';
+
+    // 1. Limpiar: Permitir solo Letras (A-Z) y Números (0-9)
+    // Se elimina cualquier cosa que NO sea alfanumérica y se pasa a mayúsculas
+    const clean = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    // 2. Formatear: Estructura XXX-XXXX-XXXX
+    if (clean.length <= 3) {
+      return clean;
+    }
+    if (clean.length <= 7) {
+      return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+    }
+
+    // Limita a 11 caracteres útiles (para respetar el maxLength total de 13 con guiones)
+    return `${clean.slice(0, 3)}-${clean.slice(3, 7)}-${clean.slice(7, 11)}`;
   };
 
   // Normaliza coma decimal a punto
