@@ -510,21 +510,38 @@ function drawHeaderBlock(doc, emisor, cab, { carguera, paisDestino }) {
   const tel = emisor.telefono ? `T: ${emisor.telefono}` : '';
   const mail = emisor.email || '';
 
+  // ... dentro de drawHeaderBlock ...
+
   const tx = emX + 8 + logoW,
     tw = emW - 16 - logoW;
   let lineY = top + 8;
+
+  // Nombre comercial
   doc.font('Helvetica-Bold').fontSize(12).text(nombre, tx, lineY, { width: tw });
   lineY += 16;
+
+  // RUC
   if (shouldShowRuc(emisor) && emisor.ruc) {
     doc.font('Helvetica').fontSize(9).text(`RUC: ${emisor.ruc}`, tx, lineY, { width: tw });
     lineY += 12;
   }
-  doc.font('Helvetica').fontSize(9).text(adr1, tx, lineY, { width: tw });
-  lineY += 12;
+
+  // --- CORRECCIÓN DE DIRECCIÓN (Punto 1) ---
+  doc.font('Helvetica').fontSize(9); // Seteamos fuente para medir
+
+  // Dirección línea 1 (Calculamos altura dinámica)
+  const hAdr1 = doc.heightOfString(adr1, { width: tw });
+  doc.text(adr1, tx, lineY, { width: tw });
+  lineY += hAdr1 + 2; // Sumamos la altura real + un pequeño margen
+
+  // Dirección línea 2 (si existe)
   if (adr2) {
+    const hAdr2 = doc.heightOfString(adr2, { width: tw });
     doc.text(adr2, tx, lineY, { width: tw });
-    lineY += 12;
+    lineY += hAdr2 + 2;
   }
+  // ------------------------------------------
+
   if (tel) {
     doc.text(tel, tx, lineY, { width: tw });
     lineY += 12;
@@ -534,6 +551,7 @@ function drawHeaderBlock(doc, emisor, cab, { carguera, paisDestino }) {
     lineY += 12;
   }
 
+  // ... resto de la función ...
   // INVOICE No / SHIPPING DATE (alineados)
   const numBoxW = 130,
     numBoxH = 26;
@@ -823,8 +841,8 @@ async function generarPdfInvoice(idfactura) {
     prov: 78,
     box: 20,
     tipo: 26,
-    prod: 120,
-    grade: 24,
+    prod: 115,
+    grade: 29,
     stmbch: 28,
     ramos: 28,
     stems: 50,
