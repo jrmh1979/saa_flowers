@@ -395,35 +395,61 @@ router.get('/timeline', async (req, res) => {
     const ids = await idsDelTercero(tipoMovimiento, idtercero);
 
     // 1) Movimientos en factura_consolidada: F / NC / ND / RT / SI
-    //    F, ND, SI => amount (+)
-    //    NC, RT    => credits (+)
     const [rowsMov] = await db.query(
       `
-      SELECT
-        fc.id                      AS id,
-        fc.tipoDocumento           AS tipo,
-        fc.fecha                   AS fecha,
-        fc.numero_factura          AS numero,
-        fc.observaciones           AS obs,
-        t.nombre                   AS mark,
-        CASE WHEN fc.tipoDocumento IN ('F','ND','SI') THEN fc.valorTotal ELSE 0 END AS amount,
-        CASE WHEN fc.tipoDocumento IN ('NC','RT')     THEN fc.valorTotal ELSE 0 END AS credits,
-        0 AS payment,
-        -- Prepagos aquí no aplican
-        0 AS prepaid,
-        -- Campos de banco (no aplican en facturas => NULL)
-        NULL AS idbanco,
-        NULL AS costo_bancario,
-        NULL AS numero_comprobante,
-        -- 👇 SI es editable (lo creas manualmente)
-        CASE WHEN fc.tipoDocumento = 'SI' THEN 1 ELSE 0 END AS editable
-      FROM factura_consolidada fc
-      JOIN terceros t ON t.idtercero = fc.idcliente
-      WHERE fc.tipoMovimiento = ?
-        AND fc.idcliente IN ( ${ids.map(() => '?').join(',')} )
-        AND fc.fecha BETWEEN ? AND ?
-        AND fc.estado <> 'proceso'
-      `,
+  SELECT
+    fc.id                      AS id,
+    fc.tipoDocumento           AS tipo,
+    fc.fecha                   AS fecha,
+    fc.numero_factura          AS numero,
+    fc.observaciones           AS obs,
+
+    /* ✅ Solo en PROVEEDORES: "#FC - Cliente/Mark" */
+    CASE
+      WHEN (fc.tipoMovimiento COLLATE utf8mb4_general_ci) = ('P' COLLATE utf8mb4_general_ci)
+        THEN COALESCE(ref.ref_mark, t.nombre)
+      ELSE t.nombre
+    END AS mark,
+
+    CASE WHEN fc.tipoDocumento IN ('F','ND','SI') THEN fc.valorTotal ELSE 0 END AS amount,
+    CASE WHEN fc.tipoDocumento IN ('NC','RT')     THEN fc.valorTotal ELSE 0 END AS credits,
+    0 AS payment,
+    0 AS prepaid,
+    NULL AS idbanco,
+    NULL AS costo_bancario,
+    NULL AS numero_comprobante,
+    CASE WHEN fc.tipoDocumento = 'SI' THEN 1 ELSE 0 END AS editable
+
+  FROM factura_consolidada fc
+  JOIN terceros t ON t.idtercero = fc.idcliente
+
+  /* ref_mark = "NUMERO_FC - CLIENTE/MARK" (puede ser varios si el doc prov se usó en varias FC) */
+  LEFT JOIN (
+    SELECT
+      d.idproveedor,
+      TRIM(COALESCE(d.documento_proveedor, '')) AS doc_prov,
+      GROUP_CONCAT(
+        DISTINCT CONCAT_WS(' - ', fc_cli.numero_factura, t_cli.nombre)
+        ORDER BY fc_cli.numero_factura
+        SEPARATOR ', '
+      ) AS ref_mark
+    FROM factura_consolidada_detalle d
+    JOIN factura_consolidada fc_cli
+      ON fc_cli.id = d.idfactura
+    JOIN terceros t_cli
+      ON t_cli.idtercero = fc_cli.idcliente
+    WHERE TRIM(COALESCE(d.documento_proveedor, '')) <> ''
+    GROUP BY d.idproveedor, TRIM(COALESCE(d.documento_proveedor, ''))
+  ) ref
+    ON ref.idproveedor = fc.idcliente
+   AND (ref.doc_prov COLLATE utf8mb4_general_ci)
+       = (fc.numero_factura COLLATE utf8mb4_general_ci)
+
+  WHERE fc.tipoMovimiento = ?
+    AND fc.idcliente IN (${ids.map(() => '?').join(',')})
+    AND fc.fecha BETWEEN ? AND ?
+    AND fc.estado <> 'proceso'
+  `,
       [tipoMovimiento, ...ids, desde, hasta]
     );
 

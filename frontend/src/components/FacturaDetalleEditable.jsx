@@ -578,6 +578,22 @@ function FacturaDetalleEditable() {
     }
   };
 
+  // Cantidad "real" del MIX (la de la primera fila) para usarla en cálculos
+  const getCantidadComunMix = (mixId) => {
+    if (!mixId) return 0;
+    const firstId = primerosPorMix?.[mixId];
+    if (!firstId) return 0;
+
+    const rows = detallesRef.current || [];
+    const firstRow = rows.find((r) => Number(r.iddetalle) === Number(firstId));
+    if (!firstRow) return 0;
+
+    // Preferimos piezas si existe, si no cantidad
+    const p = toNum(firstRow.piezas, 0);
+    const c = toNum(firstRow.cantidad, 0);
+    return p > 0 ? p : c;
+  };
+
   const handleProcessRowUpdate = async (newRow, oldRow) => {
     // 1) limpiar valores vacíos
     const cleanedRow = Object.fromEntries(
@@ -653,8 +669,21 @@ function FacturaDetalleEditable() {
       precio_venta: toNum(cleanedRow.precio_venta ?? oldRow.precio_venta),
       esramo: cleanedRow.esramo ?? oldRow.esramo
     };
+
+    // cantidad "guardada" en la fila (en no-principal de mix suele ser 0)
+    const cantidadFila = updates.cantidad ?? oldRow.cantidad;
+
+    // cantidad para CÁLCULO:
+    // - si es MIX y NO es la primera → usar cantidad de la primera del mix
+    // - caso contrario → usar la propia
+    const cantidadParaCalculo = esMix
+      ? esPrimera
+        ? cantidadFila
+        : getCantidadComunMix(mix)
+      : cantidadFila;
+
     const { cantidadTallos, tallos, subtotal, subtotalVenta, totalRamos } =
-      buildDerivadosConCantidad(base, updates.cantidad ?? oldRow.cantidad, catalogo);
+      buildDerivadosConCantidad(base, cantidadParaCalculo, catalogo);
 
     if (String(oldRow.cantidadTallos) !== String(cantidadTallos))
       updates.cantidadTallos = cantidadTallos;
